@@ -82,7 +82,7 @@ def main():
     """Main function."""
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--dest-dir", help="output dir", type=Path, required=True)
+    parser.add_argument("-d", "--dest-dir", help="output dir", type=Path, default="latest")
     parser.add_argument("-v", "--version", help="version", default="latest")
     parser.add_argument("--channel", help=argparse.SUPPRESS, choices=["stable"], default="stable")
     args = parser.parse_args()

@@ -1,0 +1,19 @@
+# Visual Studio Code offline
+
+Download Visuel Studio Code installers (ide, server, cli) and extensions.
+
+## Mirror the apps
+
+```shell
+./vscode-app.py
+```
+
+Download links are documented [here](https://code.visualstudio.com/docs/supporting/faq#_previous-release-versions).
+
+## Download extensions
+
+```shell
+ ./vscode-ext.py -c files.in
+```
+
+Links are obtained via the (horrible) [ExtensionQuery](https://learn.microsoft.com/en-us/javascript/api/azure-devops-extension-api/extensionquery) interface.

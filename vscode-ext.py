@@ -18,8 +18,21 @@ import logging
 from io import StringIO
 
 
-# PLATFORMS = ("linux-x64", "linux-arm64", "linux-armhf", "alpine-x64", "alpine-arm64", "win32-x64")
-PLATFORMS = ("linux-x64", "win32-x64")
+# cf. https://github.com/microsoft/vscode/blob/main/cli/src/update_service.rs#L241
+
+PLATFORMS = {
+    "alpine-arm64": False,
+    "alpine-x64": False,
+    "darwin-arm64": False,
+    "darwin-x64": False,
+    "linux-arm64": False,
+    "linux-armhf": False,
+    "linux-x64": True,
+    "web": False,
+    "win32-arm64": False,
+    "win32-ia32": False,
+    "win32-x64": True,
+}
 
 
 # constants from vscode extension API
@@ -165,12 +178,12 @@ def vscode_lldb(asset: Asset, dest_dir: Path) -> t.List[Asset]:
 
     logging.debug(f"vscode-lldb url: {url}")
     logging.debug(f"vscode-lldb version: {version}")
-    logging.debug(f"vscode-lldb platforms: {platforms.keys()}")
+    logging.debug(f"vscode-lldb platforms: {list(platforms.keys())}")
 
     assets = list()
 
     for platform, vsix in platforms.items():
-        if platform in PLATFORMS:
+        if PLATFORMS.get(platform) is True:
             uri = url.replace("${version}", version).replace("${platformPackage}", vsix)
 
             assets.append(Asset(asset.name, asset.version, asset.engine, uri, asset.timestamp, platform))
@@ -257,9 +270,9 @@ class Extensions:
                 os.utime(vsix, ns=(mtime_ns, mtime_ns))
             else:
                 if asset.platform:
-                    print(f"already downloaded: {asset.name} {asset.version} ({asset.platform})")
+                    logging.debug(f"already downloaded: {asset.name} {asset.version} ({asset.platform})")
                 else:
-                    print(f"already downloaded: {asset.name} {asset.version}")
+                    logging.debug(f"already downloaded: {asset.name} {asset.version}")
 
     def find_assets(self, extension_ids: t.Iterable[str]) -> t.Tuple[t.Dict[str, Asset], t.Set[str]]:
         """Build the list of extensions to download."""
@@ -374,7 +387,7 @@ class Extensions:
             "versions": [
                 {
                     "version": "2024.23.2025012401",            // the version
-                    "targetPlatform": "win32-arm64",            // target platform
+                    "win32-arm64",                              // target platform
                     "flags": "validated",
                     "lastUpdated": "2025-01-24T10:42:55.8Z",
                     "properties": [],                           // to filter by engine and exclude prerelease
@@ -413,6 +426,7 @@ class Extensions:
                     continue
 
                 if version.get("targetPlatform") is not None:
+                    assert version["targetPlatform"] in PLATFORMS
                     has_target_platform.add(version["version"])
 
                 # we have to match the platform if asked and specified for the version
@@ -449,14 +463,15 @@ class Extensions:
 
         assets = dict()
 
-        for target_platform in PLATFORMS:
-            asset = find_version_vsix(extension, target_platform)
-            if asset:
-                assets[asset.vsix] = asset
+        for target_platform, wanted in PLATFORMS.items():
+            if wanted:
+                asset = find_version_vsix(extension, target_platform)
+                if asset:
+                    assets[asset.vsix] = asset
 
         return assets
 
-    def purge(self):
+    def prune(self):
         all_vsix = set(file.name for file in self.dest_dir.glob("*.vsix"))
         our_vsix = set(asset.vsix for asset in self.all_assets_list)
 
@@ -543,9 +558,18 @@ def read_config(config_file: Path) -> defaultdict[str, set]:
                 name = name.strip()
                 if not name or name.startswith("#"):
                     continue
+
+                # remove platform
                 name = name.replace("-${arch}", "")
+                for platform in PLATFORMS.keys():
+                    name = name.replace(f"-{platform}", "")
+
+                # remove version
                 name = re.sub(r"\-(\d+)\.(\d+)\.(\d+)\.vsix$", "", name)
+
+                # lower case
                 name = name.casefold()
+
                 sections[section].add(name)
 
     return sections
@@ -553,24 +577,37 @@ def read_config(config_file: Path) -> defaultdict[str, set]:
 
 def write_assets_file(assets_file: Path, sections: defaultdict[str, set], assets: t.List[Asset]):
 
-    def make_section(section: str) -> str:
+    def make_section(vsix: str) -> str:
 
         with StringIO() as f:
-            extension_list = sections.get(section)
+            extension_list = sections.get(vsix)
             if extension_list:
-                print(f"{section}=(", file=f)
-                vsix = set()
-                for name in extension_list:
-                    for asset in assets:
-                        if asset.ignore:
+                print(f"{vsix}=(", file=f)
+
+                for name in sorted(extension_list, key=str.casefold):
+
+                    # all target platforms may not be in same version
+                    all_platforms_same_version = 1 == len(
+                        set(
+                            asset.version
+                            for asset in assets
+                            if asset.platform and not asset.ignore and name.casefold() == asset.name.casefold()
+                        )
+                    )
+
+                    for asset in sorted(assets, key=lambda asset: str(asset.platform)):
+                        if asset.ignore or name.casefold() != asset.name.casefold():
                             continue
-                        if name.casefold() == asset.name.casefold():
-                            section = asset.vsix
-                            if asset.platform:
-                                section = section.replace(asset.platform, "${arch}")
-                            vsix.add(section)
-                for name in sorted(vsix, key=str.casefold):
-                    print(f"  {name}", file=f)
+
+                        vsix = asset.vsix
+                        if asset.platform and all_platforms_same_version:
+                            vsix = vsix.replace(asset.platform, "${arch}")
+
+                            print(f"  {vsix}", file=f)
+                            break
+                        else:
+                            print(f"  {vsix}", file=f)
+
                 print(")", file=f, end="")
 
             return f.getvalue()
@@ -594,11 +631,12 @@ def write_assets_file(assets_file: Path, sections: defaultdict[str, set], assets
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="verbose and debug info", action="store_true")
-    parser.add_argument("-d", "--dest-dir", help="output dir", type=Path, required=True)
+    parser.add_argument("-d", "--dest-dir", help="output dir", type=Path, default="latest")
     parser.add_argument("-e", "--engine", help="engine version", default="current")
     parser.add_argument("-c", "--config", help="configuration file", type=Path)
     parser.add_argument("--local", help="from local VS Code", action="store_true")
     parser.add_argument("--compare-local", action="store_true")
+    parser.add_argument("-p", "--prune", help="prune old and unwanted extensions", action="store_true")
     parser.add_argument("ID", help="extension identifier", nargs="*")
     args = parser.parse_args()
 
@@ -647,7 +685,8 @@ def main():
     exts = Extensions(args.engine, dest_dir, args.verbose)
     exts.run(extension_ids)
 
-    exts.purge()
+    if args.prune:
+        exts.prune()
 
     write_assets_file(dest_dir / "files", sections, exts.assets())
 
