@@ -49,10 +49,10 @@ def download(dest_dir: Path, url: str) -> str:
     return filename
 
 
-def write_assets_file(config_file: Path, assets: t.Dict[str, str]):
+def write_assets_file(assets_file: Path, assets: t.Dict[str, str]):
 
-    if config_file.is_file():
-        config = config_file.read_text()
+    if assets_file.is_file():
+        config = assets_file.read_text()
     else:
         config = ""
 
@@ -69,13 +69,13 @@ def write_assets_file(config_file: Path, assets: t.Dict[str, str]):
 
     config = "\n".join(new_config) + "\n"
 
-    old = config_file.with_suffix(".old")
-    if old.is_file():
-        old.unlink()
-    if config_file.is_file():
-        config_file.rename(old)
+    # old = config_file.with_suffix(".old")
+    # if old.is_file():
+    #     old.unlink()
+    # if config_file.is_file():
+    #     config_file.rename(old)
 
-    config_file.write_text(config)
+    assets_file.write_text(config)
 
 
 def main():
@@ -122,7 +122,7 @@ def main():
     dest_dir.mkdir(exist_ok=True, parents=True)
 
     # save the version information
-    (dest_dir / "version").write_text(f"version={version}\ncommit={commit_id}\nchannel={channel}\n")
+    # (dest_dir / "version").write_text(f"version={version}\ncommit={commit_id}\nchannel={channel}\n")
 
     assets = dict()
     assets["version"] = version

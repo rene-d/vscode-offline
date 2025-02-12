@@ -23,7 +23,7 @@ from io import StringIO
 PLATFORMS = {
     "alpine-arm64": False,
     "alpine-x64": False,
-    "darwin-arm64": False,
+    "darwin-arm64": True,
     "darwin-x64": False,
     "linux-arm64": False,
     "linux-armhf": False,
@@ -266,7 +266,7 @@ class Extensions:
                 r = requests.get(asset.uri)
                 vsix.write_bytes(r.content)
 
-                mtime_ns = datetime.fromisoformat(asset.timestamp).toordinal() * 1_000_000_000
+                mtime_ns = int(datetime.fromisoformat(asset.timestamp).timestamp() * 1_000_000_000)
                 os.utime(vsix, ns=(mtime_ns, mtime_ns))
             else:
                 if asset.platform:
@@ -577,6 +577,8 @@ def read_config(config_file: Path) -> defaultdict[str, set]:
 
 def write_assets_file(assets_file: Path, sections: defaultdict[str, set], assets: t.List[Asset]):
 
+    group_by_platform=False
+
     def make_section(vsix: str) -> str:
 
         with StringIO() as f:
@@ -600,9 +602,8 @@ def write_assets_file(assets_file: Path, sections: defaultdict[str, set], assets
                             continue
 
                         vsix = asset.vsix
-                        if asset.platform and all_platforms_same_version:
+                        if asset.platform and all_platforms_same_version and group_by_platform:
                             vsix = vsix.replace(asset.platform, "${arch}")
-
                             print(f"  {vsix}", file=f)
                             break
                         else:
@@ -620,11 +621,12 @@ def write_assets_file(assets_file: Path, sections: defaultdict[str, set], assets
 
     inventory += "\n\n".join(make_section(section) for section in sections) + "\n"
 
-    old = assets_file.with_suffix(".old")
-    if old.is_file():
-        old.unlink()
-    if assets_file.is_file():
-        assets_file.rename(old)
+    # old = assets_file.with_suffix(".old")
+    # if old.is_file():
+    #     old.unlink()
+    # if assets_file.is_file():
+    #     assets_file.rename(old)
+
     assets_file.write_text(inventory)
 
 
@@ -671,10 +673,14 @@ def main():
         print(f"Using Visual Studio Code {BRIGHT_GREEN}{args.engine}{RESET} (latest)")
 
     elif args.engine == "current":
-        version = (args.dest_dir / "version").read_text()
+        f = args.dest_dir / "files"
+        if not f.is_file():
+            logging.error(f"Missing version file: {f}")
+            exit(1)
+        version = f.read_text()
         m = re.search(r"\bversion=(.+)\b", version)
         if not m:
-            logging.error("version not found")
+            logging.error(f"Version not found in {f}")
             exit(1)
         args.engine = m[1].strip()
         print(f"Using Visual Studio Code {BRIGHT_GREEN}{args.engine}{RESET}")
