@@ -83,14 +83,24 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dest-dir", help="output dir", type=Path, default="latest")
-    parser.add_argument("-v", "--version", help="version", default="latest")
+    parser.add_argument("-v", "--version", help="version")
     parser.add_argument("--channel", help=argparse.SUPPRESS, choices=["stable"], default="stable")
     args = parser.parse_args()
 
     ###############################################################################
     print("\n\033[1;34m🍻 Downloading VSCode\033[0m")
 
+    if args.version is None:
+        if (args.dest_dir / "files").is_file():
+            for line in (args.dest_dir / "files").read_text().splitlines():
+                if line.startswith("version="):
+                    args.version = line.removeprefix("version=")
+                    break
+
     print(f"Visual Studio Code: \033[1;33m{args.channel}\033[0m")
+
+    if args.version is None:
+        args.version = "latest"
 
     # retrieve Windows version download link
     # ref: https://code.visualstudio.com/docs/supporting/faq#_previous-release-versions

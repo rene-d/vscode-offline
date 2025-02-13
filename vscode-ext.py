@@ -23,7 +23,7 @@ from io import StringIO
 PLATFORMS = {
     "alpine-arm64": False,
     "alpine-x64": False,
-    "darwin-arm64": True,
+    "darwin-arm64": False,
     "darwin-x64": False,
     "linux-arm64": False,
     "linux-armhf": False,
