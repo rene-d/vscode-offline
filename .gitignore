@@ -1,3 +1,4 @@
-latest/
+code-*/
+config.in
 query_*.json
 response_*.json

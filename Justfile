@@ -1,10 +1,8 @@
-all: app ext
+featured:
+    python3 vscode.py --version 1.96.4 -c files.in --prune
 
-app:
-    python3 vscode-app.py -d latest
-
-ext:
-    python3 vscode-ext.py -d latest -c files.in
+latest:
+    python3 vscode.py -c files.in --prune
 
 clean:
     rm -f query_*.json response_*.json
