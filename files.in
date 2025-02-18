@@ -3,38 +3,14 @@ all_extensions=(
   charliermarsh.ruff
   DavidAnson.vscode-markdownlint
   EditorConfig.EditorConfig
-  formulahendry.code-runner
   goessner.mdmath
-  golang.Go
   James-Yu.latex-workshop
-  mechatroner.rainbow-csv
-  ms-azuretools.vscode-docker
-  MS-CEINTL.vscode-language-pack-fr
-  ms-python.black-formatter
-  ms-python.debugpy
-  ms-python.flake8
-  ms-python.isort
-  ms-python.pylint
-  ms-python.python
-  ms-python.vscode-pylance
-  ms-toolsai.jupyter
-  ms-toolsai.jupyter-keymap
-  ms-toolsai.jupyter-renderers
-  ms-toolsai.vscode-jupyter-cell-tags
-  ms-toolsai.vscode-jupyter-slideshow
-  ms-vscode-remote.remote-containers
-  ms-vscode-remote.remote-ssh
-  ms-vscode-remote.remote-ssh-edit
-  ms-vscode.remote-explorer
   nefrob.vscode-just-syntax
   pest.pest-ide-tools
-  redhat.vscode-xml
   redhat.vscode-yaml
   rust-lang.rust-analyzer
   tamasfe.even-better-toml
   vadimcn.vscode-lldb
-  vscodevim.vim
   waderyan.gitblame
-  yzane.markdown-pdf
   GitHub.github-vscode-theme
 )

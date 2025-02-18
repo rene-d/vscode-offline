@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 import typing as t
 import zipfile
@@ -263,7 +263,7 @@ class Extensions:
                 break
 
         ignored = sum(1 for a in all_assets_list if a.ignore)
-        print(f"downloaded {len(all_assets_list) - ignored} vsix")
+        print(f"downloaded vsix: {len(all_assets_list) - ignored}")
 
         all_extension_ids = set(asset.name.casefold() for asset in all_assets_list)
         missing = set(map(str.casefold, extension_ids)).difference(all_extension_ids)
@@ -285,7 +285,7 @@ class Extensions:
                 vsix.parent.mkdir(parents=True, exist_ok=True)
                 print(f"download {vsix}")
 
-                r = requests.get(asset.uri)
+                r = requests.get(asset.uri, timeout=30)
                 vsix.write_bytes(r.content)
 
                 mtime_ns = int(datetime.fromisoformat(asset.timestamp).timestamp() * 1_000_000_000)
@@ -369,6 +369,7 @@ class Extensions:
                     "Content-Type": "application/json",
                     "Accept": "application/json;api-version=3.0-preview.1",
                 },
+                timeout=10,
             )
             if self.write_cache:
                 Path(f"query_{hash}.json").write_text(data_str)
@@ -512,7 +513,7 @@ def get_code_version(version: str, channel="stable"):
 
     # url = f"https://code.visualstudio.com/sha/download?build={channel}&os=win32-x64-archive"
 
-    r = requests.get(url, allow_redirects=False)
+    r = requests.get(url, allow_redirects=False, timeout=10)
     if r is None or r.status_code != 302:
         logging.fatal(f"request error {r}")
         exit(2)
@@ -552,11 +553,22 @@ def read_code_version(files: Path) -> CodeVersion:
     return CodeVersion(m_version[1], m_commit[1], m_channel[1])
 
 
+def get_installed_extensions() -> t.List[str]:
+    """
+    List the installed extensions.
+    """
+    try:
+        output = subprocess.check_output(["code", "--list-extensions"])  # nosec B603 B607
+        return output.decode().splitlines()
+    except Exception:
+        return []
+
+
 def compare_local(extension_ids: t.Iterable[str]):
     """
     Compare the list of desired extensions with the list of locally installed extensions.
     """
-    set_installed = set(subprocess.check_output(["code", "--list-extensions"]).decode().split())
+    set_installed = set(get_installed_extensions())
     set_wanted = set(extension_ids)
 
     # check the case
@@ -628,7 +640,7 @@ class Config:
         extension_ids = set(extension_identifiers)
 
         if use_local_code:
-            extension_ids.update(subprocess.check_output(["code", "--list-extensions"]).decode().splitlines())
+            extension_ids.update(get_installed_extensions())
 
         for _, v in self.sections.items():
             extension_ids.update(v)
@@ -856,17 +868,17 @@ def main():
 
     set_verbosity(args.verbose)
 
-    if not args.config and args.dest_dir:
-        args.config = args.dest_dir / "files"
+    # get the version and destination
+    version, dest_dir = get_version_dest_dir(args.version, args.dest_dir)
+
+    if not args.config:
+        args.config = dest_dir / "files"
 
     config = Config(args.config, args.ID, args.local)
 
     # comparse list of extensions with installed ones
     if args.compare_local:
         exit(compare_local(config.all_extensions))
-
-    # get the version and destination
-    version, dest_dir = get_version_dest_dir(args.version, args.dest_dir)
 
     # code and code-server
     if not args.extensions_only:
