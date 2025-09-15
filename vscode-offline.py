@@ -207,7 +207,16 @@ def vscode_lldb(asset: Asset, dest_dir: Path) -> t.List[Asset]:
     for platform, vsix in platforms.items():
         if PLATFORMS.get(platform) is True:
             uri = url.replace("${version}", version).replace("${platformPackage}", vsix)
-            assets.append(Asset(asset.name, asset.version, asset.engine, uri, asset.timestamp, platform))
+            assets.append(
+                Asset(
+                    asset.name,
+                    asset.version,
+                    asset.engine,
+                    uri,
+                    asset.timestamp,
+                    platform,
+                )
+            )
 
     return assets
 
@@ -242,7 +251,7 @@ class Extensions:
                 m = json.loads(zip.open("extension/package.json").read())
                 new_extension_ids.update(m["extensionPack"])
                 zip.close()
-                logging.debug(f'pack {pack} has {len(m["extensionPack"])} extension(s)')
+                logging.debug(f"pack {pack} has {len(m['extensionPack'])} extension(s)")
 
             new_extension_ids.difference_update(all_extension_ids)
 
@@ -278,10 +287,8 @@ class Extensions:
         """
 
         for asset in assets:
-
             vsix = self.dest_dir / asset.vsix
             if not vsix.exists():
-
                 vsix.parent.mkdir(parents=True, exist_ok=True)
                 print(f"download {vsix}")
 
@@ -303,7 +310,6 @@ class Extensions:
         packs: t.Set[str] = set()
 
         if extension_ids:
-
             # do the request to extension server
             # result is an array of extensions
             r = self.do_extension_query(extension_ids)
@@ -532,7 +538,6 @@ def get_code_version(version: str, channel="stable"):
 
 
 def read_code_version(files: Path) -> CodeVersion:
-
     assets = files.read_text()
 
     m_version = re.search(r"\bversion=(.+)\b", assets)
@@ -610,12 +615,17 @@ def compare_local(extension_ids: t.Iterable[str]):
 
 
 class Config:
-    def __init__(self, assets_file: t.Optional[Path], extension_identifiers: t.List[str], use_local_code: bool):
-
+    def __init__(
+        self,
+        assets_file: t.Optional[Path],
+        extension_identifiers: t.List[str],
+        use_local_code: bool,
+    ):
         # read extension list from configuration file
         self.sections = defaultdict(set)
 
         if assets_file and assets_file.is_file():
+            print(f"reading configuration from: {assets_file}")
             files = assets_file.read_text()
             for section, extension_list in re.findall(r"(\w+_extensions)=\((.+?)\)", files, flags=re.DOTALL):
                 for name in extension_list.splitlines():
@@ -654,18 +664,15 @@ class Config:
 
 
 def write_extension_assets(assets_file: Path, config: Config, assets: t.List[Asset]):
-
     group_by_platform = False
 
     def make_section(vsix: str) -> str:
-
         with StringIO() as f:
             extension_list = config.sections.get(vsix)
             if extension_list:
                 print(f"{vsix}=(", file=f)
 
                 for name in sorted(extension_list, key=str.casefold):
-
                     # all target platforms may not be in same version
                     all_platforms_same_version = 1 == len(
                         set(
@@ -692,7 +699,12 @@ def write_extension_assets(assets_file: Path, config: Config, assets: t.List[Ass
             return f.getvalue()
 
     if assets_file.is_file():
-        inventory = re.sub(r"\b\w+_extensions=\((?:.+?)\)", "", assets_file.read_text(), flags=re.DOTALL)
+        inventory = re.sub(
+            r"\b\w+_extensions=\((?:.+?)\)",
+            "",
+            assets_file.read_text(),
+            flags=re.DOTALL,
+        )
         inventory = inventory.strip() + "\n\n"
     else:
         inventory = ""
@@ -714,7 +726,6 @@ def write_extension_assets(assets_file: Path, config: Config, assets: t.List[Ass
 
 
 def write_code_assets(assets_file: Path, assets: t.Dict[str, str]):
-
     if assets_file.is_file():
         config = assets_file.read_text()
     else:
@@ -743,7 +754,6 @@ def write_code_assets(assets_file: Path, assets: t.Dict[str, str]):
 
 
 def get_version_dest_dir(engine: t.Optional[str], dest_dir: t.Optional[Path]) -> t.Tuple[CodeVersion, Path]:
-
     if dest_dir and (dest_dir / "files").is_file():
         version = read_code_version(dest_dir / "files")
 
@@ -764,7 +774,10 @@ def get_version_dest_dir(engine: t.Optional[str], dest_dir: t.Optional[Path]) ->
         exit(1)
 
     if not dest_dir:
-        dest_dir = Path(f"code-{version.version}")
+        if Path.cwd().name == "vscode":
+            dest_dir = Path(f"dist-{version.version}")
+        else:
+            dest_dir = Path(f"code-{version.version}")
         print(f"Using dest_dir {BRIGHT_GREEN}{dest_dir}{RESET}")
 
     dest_dir.mkdir(exist_ok=True, parents=True)
@@ -773,7 +786,6 @@ def get_version_dest_dir(engine: t.Optional[str], dest_dir: t.Optional[Path]) ->
 
 
 def download_code(dest_dir: Path, url: str) -> str:
-
     session = requests.Session()
 
     r = session.head(url)
@@ -811,7 +823,6 @@ def download_code(dest_dir: Path, url: str) -> str:
 
 
 def download_code_assets(code: CodeVersion, dest_dir: Path) -> t.Dict[str, str]:
-
     assets = dict()
 
     assets["version"] = code.version
@@ -844,7 +855,6 @@ def download_code_assets(code: CodeVersion, dest_dir: Path) -> t.Dict[str, str]:
 
 
 def set_verbosity(verbose: bool):
-
     format = f"{GREEN}%(asctime)s{RESET}{FADE} - %(levelname)s - %(message)s{RESET}"
     datefmt = None  # "%H:%M:%S"
     if verbose:
@@ -872,7 +882,9 @@ def main():
     version, dest_dir = get_version_dest_dir(args.version, args.dest_dir)
 
     if not args.config:
-        args.config = dest_dir / "files"
+        args.config = Path("vscode-offline.conf")
+        if not args.config.is_file():
+            args.config = dest_dir / "files"
 
     config = Config(args.config, args.ID, args.local)
 
